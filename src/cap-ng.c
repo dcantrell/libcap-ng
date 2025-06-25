@@ -12,9 +12,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; see the file COPYING.LIB. If not, write to the
+ * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor
+ * Boston, MA 02110-1335, USA.
  *
  * Authors:
  *      Steve Grubb <sgrubb@redhat.com>
@@ -444,7 +445,7 @@ static int get_bounding_set(void)
 #ifdef HAVE_SYSCALL_H
 		(int)syscall(__NR_gettid));
 #else
-		(int)getpid();
+		(int)getpid());
 #endif
 	f = fopen(buf, "re");
 	if (f) {
@@ -489,7 +490,7 @@ static int get_ambient_set(void)
 #ifdef HAVE_SYSCALL_H
 		(int)syscall(__NR_gettid));
 #else
-		(int)getpid();
+		(int)getpid());
 #endif
 	f = fopen(buf, "re");
 	if (f) {
@@ -523,6 +524,9 @@ static int get_ambient_set(void)
 }
 #endif
 
+/*
+ * Returns 0 on success and -1 on failure
+ */
 int capng_get_caps_process(void)
 {
 	int rc;
@@ -637,6 +641,8 @@ int capng_get_caps_fd(int fd)
 	rc = load_data(&filedata, rc);
 	if (rc == 0)
 		m.state = CAPNG_INIT;
+	else
+		m.state = CAPNG_ERROR; // If load data failed, malformed data
 
 	return rc;
 #endif
@@ -789,7 +795,8 @@ int capng_apply(capng_select_t set)
 if (HAVE_PR_CAPBSET_DROP) {
 		struct cap_ng state;
 		memcpy(&state, &m, sizeof(state)); /* save state */
-		capng_get_caps_process();
+		if (capng_get_caps_process())
+			return -9;
 		if (capng_have_capability(CAPNG_EFFECTIVE, CAP_SETPCAP)) {
 			unsigned int i;
 			memcpy(&m, &state, sizeof(m)); /* restore state */
@@ -1118,8 +1125,10 @@ capng_results_t capng_have_capabilities(capng_select_t set)
 	int empty = 0, full = 0;
 
 	// First, try to init with current set
-	if (m.state < CAPNG_INIT)
-		capng_get_caps_process();
+	if (m.state < CAPNG_INIT) {
+		if (capng_get_caps_process())
+			return CAPNG_FAIL;
+	}
 
 	// If we still don't have anything, error out
 	if (m.state < CAPNG_INIT)
@@ -1205,8 +1214,10 @@ capng_results_t capng_have_permitted_capabilities(void)
 	int empty = 0, full = 0;
 
 	// First, try to init with current set
-	if (m.state < CAPNG_INIT)
-		capng_get_caps_process();
+	if (m.state < CAPNG_INIT) {
+		if (capng_get_caps_process())
+			return CAPNG_FAIL;
+	}
 
 	// If we still don't have anything, error out
 	if (m.state < CAPNG_INIT)
@@ -1277,8 +1288,10 @@ static int v1_check(unsigned int capability, __u32 data)
 int capng_have_capability(capng_type_t which, unsigned int capability)
 {
 	// First, try to init with current set
-	if (m.state < CAPNG_INIT)
-		capng_get_caps_process();
+	if (m.state < CAPNG_INIT) {
+		if (capng_get_caps_process())
+			return 0;
+	}
 
 	// If we still don't have anything, error out
 	if (m.state < CAPNG_INIT)
